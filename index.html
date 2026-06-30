@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Security Control Center</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial;
+      background: #0b0f1a;
+      color: white;
+    }
+
+    /* SIDEBAR */
+    .sidebar {
+      position: fixed;
+      left: 0;
+      top: 0;
+      width: 220px;
+      height: 100%;
+      background: #0f172a;
+      padding: 20px;
+    }
+
+    .logo {
+      color: #38bdf8;
+      font-size: 20px;
+      margin-bottom: 30px;
+      font-weight: bold;
+    }
+
+    .menu button {
+      width: 100%;
+      margin: 5px 0;
+      padding: 10px;
+      background: #111c36;
+      border: none;
+      color: white;
+      cursor: pointer;
+      border-radius: 8px;
+    }
+
+    .menu button:hover {
+      background: #1e3a8a;
+    }
+
+    /* MAIN */
+    .main {
+      margin-left: 240px;
+      padding: 20px;
+    }
+
+    .card {
+      background: #111c36;
+      padding: 15px;
+      border-radius: 12px;
+      margin-bottom: 15px;
+      border: 1px solid #1e3a8a;
+    }
+
+    input {
+      padding: 10px;
+      margin: 5px;
+      border-radius: 8px;
+      border: none;
+      width: 200px;
+    }
+
+    button.action {
+      background: #2563eb;
+      border: none;
+      padding: 10px;
+      color: white;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    button.action:hover {
+      background: #1d4ed8;
+    }
+
+    #map {
+      height: 350px;
+      border-radius: 12px;
+      margin-top: 10px;
+    }
+
+    .hidden { display:none; }
+  </style>
+</head>
+
+<body>
+
+<!-- LOGIN -->
+<div id="loginBox" style="padding:50px;">
+  <h2 style="color:#38bdf8;">Security Login</h2>
+
+  <input id="email" placeholder="Email"><br>
+  <input id="password" type="password" placeholder="Passwort"><br>
+
+  <button class="action" onclick="login()">Login</button>
+  <button class="action" onclick="register()">Register</button>
+
+  <p id="status"></p>
+</div>
+
+<!-- APP -->
+<div id="app" class="hidden">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="logo">SECURITY OPS</div>
+
+    <div class="menu">
+      <button onclick="show('dashboard')">Dashboard</button>
+      <button onclick="show('employees')">Mitarbeiter</button>
+      <button onclick="show('mapView')">Karte</button>
+      <button onclick="logout()">Logout</button>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+
+    <!-- DASHBOARD -->
+    <div id="dashboard">
+      <div class="card">
+        <h3>System Status</h3>
+        <p>Alles läuft stabil</p>
+      </div>
+
+      <div class="card">
+        <h3>Live Übersicht</h3>
+        <p>Mitarbeiter online: 0</p>
+      </div>
+    </div>
+
+    <!-- EMPLOYEES -->
+    <div id="employees" class="hidden">
+      <div class="card">
+        <h3>Mitarbeiter hinzufügen</h3>
+
+        <input id="name" placeholder="Name">
+        <input id="role" placeholder="Rolle">
+
+        <button class="action" onclick="addEmployee()">Speichern</button>
+      </div>
+
+      <div class="card">
+        <h3>Liste</h3>
+        <ul id="list"></ul>
+      </div>
+    </div>
+
+    <!-- MAP -->
+    <div id="mapView" class="hidden">
+      <div class="card">
+        <h3>Live Karte</h3>
+        <div id="map"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const supabaseUrl = "https://juigkdqgknwetmzixqmg.supabase.co";
+const supabaseKey = "sb_publishable_iJ3vaNsxzrd-x4DTQ9FwBA_u03ludra";
+const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+
+let map;
+
+// LOGIN
+async function login() {
+  let email = email.value;
+  let password = password.value;
+
+  let { error } = await supabaseClient.auth.signInWithPassword({
+    email, password
+  });
+
+  if (!error) {
+    document.getElementById("loginBox").classList.add("hidden");
+    document.getElementById("app").classList.remove("hidden");
+    loadEmployees();
+  }
+}
+
+// REGISTER
+async function register() {
+  let email = email.value;
+  let password = password.value;
+
+  await supabaseClient.auth.signUp({ email, password });
+  alert("Registriert!");
+}
+
+// NAVIGATION
+function show(page) {
+  document.querySelectorAll('.main > div').forEach(d => d.classList.add('hidden'));
+  document.getElementById(page).classList.remove('hidden');
+
+  if (page === "mapView") loadMap();
+}
+
+// EMPLOYEES
+async function addEmployee() {
+  await supabaseClient.from("profiles").insert([{
+    name: document.getElementById("name").value,
+    role: document.getElementById("role").value
+  }]);
+
+  loadEmployees();
+}
+
+async function loadEmployees() {
+  let { data } = await supabaseClient.from("profiles").select("*");
+
+  let list = document.getElementById("list");
+  list.innerHTML = "";
+
+  data.forEach(e => {
+    let li = document.createElement("li");
+    li.innerText = e.name + " - " + e.role;
+    list.appendChild(li);
+  });
+}
+
+// MAP
+function loadMap() {
+  setTimeout(() => {
+    if (map) return;
+
+    map = L.map('map').setView([51.3397, 12.3731], 13);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: 'OSM'
+    }).addTo(map);
+
+    L.marker([51.3397, 12.3731])
+      .addTo(map)
+      .bindPopup("Security HQ");
+  }, 300);
+}
+
+// LOGOUT
+async function logout() {
+  await supabaseClient.auth.signOut();
+  location.reload();
+}
+</script>
+
+</body>
+</html>
