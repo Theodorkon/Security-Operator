@@ -1,0 +1,227 @@
+async function protectPage(){
+
+    const { data } = await db.auth.getSession();
+
+    if(!data.session){
+
+        window.location.href = "login.html";
+
+    }
+
+}
+
+protectPage();
+
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport"
+content="width=device-width, initial-scale=1.0">
+
+<title>Security Command Center</title>
+
+<meta name="theme-color" content="#0d47a1">
+
+<link rel="preconnect"
+href="https://fonts.googleapis.com">
+
+<link rel="preconnect"
+href="https://fonts.gstatic.com"
+crossorigin>
+
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap"
+rel="stylesheet">
+
+<link rel="stylesheet"
+href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+
+<link rel="stylesheet"
+href="css/login.css">
+
+</head>
+
+<body>
+
+<div class="background">
+
+<div class="circle circle1"></div>
+<div class="circle circle2"></div>
+<div class="circle circle3"></div>
+
+</div>
+
+<div class="container">
+
+<div class="left">
+
+<div class="logo">
+
+<i class="fa-solid fa-shield-halved"></i>
+
+<h1>Security Command Center</h1>
+
+<p>
+
+Professionelle Leitstelle für
+Sicherheitsunternehmen
+
+</p>
+
+</div>
+
+<div class="features">
+
+<div class="feature">
+
+<i class="fa-solid fa-location-dot"></i>
+
+<span>Live GPS Tracking</span>
+
+</div>
+
+<div class="feature">
+
+<i class="fa-solid fa-users"></i>
+
+<span>Mitarbeiterverwaltung</span>
+
+</div>
+
+<div class="feature">
+
+<i class="fa-solid fa-building-shield"></i>
+
+<span>Objektverwaltung</span>
+
+</div>
+
+<div class="feature">
+
+<i class="fa-solid fa-bell"></i>
+
+<span>Alarmzentrale</span>
+
+</div>
+
+<div class="feature">
+
+<i class="fa-solid fa-map"></i>
+
+<span>OpenStreetMap</span>
+
+</div>
+
+</div>
+
+</div>
+
+<div class="right">
+
+<div class="login-card">
+
+<h2>Anmelden</h2>
+
+<p>
+
+Melde dich mit deinem Konto an.
+
+</p>
+
+<div id="message"></div>
+
+<div class="input-box">
+
+<i class="fa-solid fa-envelope"></i>
+
+<input
+
+type="email"
+
+id="email"
+
+placeholder="E-Mail">
+
+</div>
+
+<div class="input-box">
+
+<i class="fa-solid fa-lock"></i>
+
+<input
+
+type="password"
+
+id="password"
+
+placeholder="Passwort">
+
+<button
+type="button"
+id="togglePassword">
+
+<i class="fa-solid fa-eye"></i>
+
+</button>
+
+</div>
+
+<button
+id="loginBtn"
+class="loginButton">
+
+Anmelden
+
+</button>
+
+<button
+id="registerBtn"
+class="registerButton">
+
+Registrieren
+
+</button>
+
+<a
+href="#"
+class="forgot">
+
+Passwort vergessen?
+
+</a>
+
+</div>
+
+</div>
+
+</div>
+<!-- Ladeanimation -->
+<div id="loadingOverlay" class="loading-overlay hidden">
+    <div class="spinner"></div>
+    <p>Anmeldung läuft...</p>
+</div>
+
+<!-- Footer -->
+<footer class="login-footer">
+
+    <p>
+
+        © 2026 Security Command Center
+
+    </p>
+
+</footer>
+
+<!-- Supabase -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<!-- Eigene Dateien -->
+<script src="js/supabase.js"></script>
+<script src="js/login.js"></script>
+
+</body>
+
+</html>
