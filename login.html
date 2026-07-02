@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login | Security Operator</title>
+  <style>
+    body { margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center; background:#11151d; color:#eef0f6; font-family:Inter,system-ui,sans-serif; }
+    .login-box { width:min(420px,calc(100%-32px)); background:#181f2c; border:1px solid #2e3340; border-radius:18px; padding:32px; box-shadow:0 24px 60px rgba(0,0,0,.3); }
+    .login-box h1 { margin:0 0 12px; font-size:24px; letter-spacing:-.03em; }
+    .login-box p { margin:0 0 24px; color:#9aa0b0; line-height:1.6; }
+    .field { display:flex; flex-direction:column; gap:8px; margin-bottom:16px; }
+    .field label { font-size:12px; color:#7f8fa5; text-transform:uppercase; letter-spacing:.08em; }
+    .field input { background:#12171f; border:1px solid #2e3340; border-radius:12px; color:#eef0f6; font-size:14px; padding:12px 14px; outline:none; }
+    .field input:focus { border-color:#4a9eff; }
+    .password-wrapper { position:relative; display:flex; align-items:center; }
+    .password-wrapper input { width:100%; padding-right:48px; }
+    .icon-button { position:absolute; right:10px; top:50%; transform:translateY(-50%); border:none; background:#1e293b; color:#cbd5e1; cursor:pointer; width:34px; height:34px; border-radius:10px; display:flex; align-items:center; justify-content:center; transition:background .15s, color .15s; }
+    .icon-button:hover { background:#334155; color:#fff; }
+    .icon-button svg { width:18px; height:18px; }
+    .hidden { display:none; }
+    .login-button { width:100%; border:none; border-radius:12px; background:#4a9eff; color:#fff; font-size:14px; font-weight:700; padding:14px 0; cursor:pointer; transition:transform .15s ease, opacity .15s ease; }
+    .login-button:hover { transform:translateY(-1px); opacity:.96; }
+    .secondary-button { width:100%; margin-top:12px; border:none; border-radius:12px; background:#262f3f; color:#cbd5e1; font-size:14px; font-weight:700; padding:14px 0; cursor:pointer; transition:transform .15s ease, opacity .15s ease; }
+    .secondary-button:hover { transform:translateY(-1px); opacity:.96; }
+    .login-note { margin-top:18px; font-size:12px; color:#76829f; }
+  </style>
+</head>
+<body>
+  <div class="login-box">
+    <h1>Security Operator</h1>
+    <p>Bitte melde dich an, um zur Leitstelle zu gelangen.</p>
+    <div class="field">
+      <label for="login-language">Sprache</label>
+      <select id="login-language" onchange="setLoginLanguage(this.value)">
+        <option value="Deutsch">Deutsch</option>
+        <option value="English">English</option>
+        <option value="Русский">Русский</option>
+        <option value="Français">Français</option>
+        <option value="Español">Español</option>
+      </select>
+    </div>
+    <form id="loginForm">
+      <div class="field login-only hidden" id="firstNameField">
+        <label for="firstName">Vorname</label>
+        <input id="firstName" name="firstName" type="text" placeholder="Max">
+      </div>
+      <div class="field login-only hidden" id="lastNameField">
+        <label for="lastName">Nachname</label>
+        <input id="lastName" name="lastName" type="text" placeholder="Mustermann">
+      </div>
+      <div class="field">
+        <label for="email">E-Mail</label>
+        <input id="email" name="email" type="email" placeholder="deine@adresse.de" required>
+      </div>
+      <div class="field password-field">
+        <label for="password">Passwort</label>
+        <div class="password-wrapper">
+          <input id="password" name="password" type="password" placeholder="Passwort" required>
+          <button type="button" id="togglePassword" class="icon-button" aria-label="Passwort anzeigen">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+          </button>
+        </div>
+      </div>
+      <button class="login-button" type="submit" id="submitBtn">Anmelden</button>
+      <button class="secondary-button" type="button" id="modeToggleBtn">Noch kein Konto? Registrieren</button>
+    </form>
+    <div id="statusMessage" class="login-note">Hinweis: Bitte melden Sie sich an oder registrieren Sie sich zuerst.</div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    const supabaseUrl = 'https://juigkdqgknwetmzixqmg.supabase.co';
+    const supabaseKey = 'sb_publishable_iJ3vaNsxzrd-x4DTQ9FwBA_u03ludra';
+    const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+    const statusEl = document.getElementById('statusMessage');
+    const firstNameEl = document.getElementById('firstName');
+    const lastNameEl = document.getElementById('lastName');
+    const emailEl = document.getElementById('email');
+    const passwordEl = document.getElementById('password');
+    const LOGIN_LANGUAGES = ['Deutsch','English','Русский','Français','Español'];
+    const LOGIN_LCODES = { Deutsch:'de', English:'en', Русский:'ru', Français:'fr', Español:'es' };
+    const LOGIN_TRANSLATIONS = {
+      de: {},
+      en: {
+        'Security Operator':'Security Operator',
+        'Bitte melde dich an, um zur Leitstelle zu gelangen.':'Please sign in to access dispatch.',
+        'Vorname':'First name',
+        'Nachname':'Last name',
+        'E-Mail':'Email',
+        'Passwort':'Password',
+        'Anmelden':'Sign in',
+        'Registrieren':'Register',
+        'Noch kein Konto? Registrieren':'No account yet? Register',
+        'Schon ein Konto? Anmelden':'Already have an account? Sign in',
+        'Hinweis: Bitte melden Sie sich an oder registrieren Sie sich zuerst.':'Note: Please sign in or register first.',
+        'Bitte E-Mail und Passwort eingeben.':'Please enter email and password.',
+        'Bitte fülle alle Felder aus, um ein Konto zu erstellen.':'Please fill in all fields to create an account.',
+        'Passwort muss mindestens 6 Zeichen lang sein.':'Password must be at least 6 characters long.',
+        'Anmeldung läuft...':'Signing in...',
+        'Registrierung wird erstellt...':'Creating registration...',
+        'Registrierung erfolgreich. Bitte bestätige deine E-Mail-Adresse.':'Registration successful. Please confirm your email address.',
+        'Anmeldung fehlgeschlagen.':'Sign in failed.',
+        'Sprache':'Language',
+        'Passwort verbergen':'Hide password',
+        'Passwort anzeigen':'Show password',
+        'Login | Security Operator':'Login | Security Operator'
+      },
+      ru: {
+        'Security Operator':'Security Operator',
+        'Bitte melde dich an, um zur Leitstelle zu gelangen.':'Пожалуйста, войдите, чтобы получить доступ к диспетчерской.',
+        'Vorname':'Имя',
+        'Nachname':'Фамилия',
+        'E-Mail':'Эл. почта',
+        'Passwort':'Пароль',
+        'Anmelden':'Войти',
+        'Registrieren':'Регистрация',
+        'Noch kein Konto? Registrieren':'Нет аккаунта? Зарегистрироваться',
+        'Schon ein Konto? Anmelden':'Уже есть аккаунт? Войти',
+        'Hinweis: Bitte melden Sie sich an oder registrieren Sie sich zuerst.':'Примечание: пожалуйста, сначала войдите или зарегистрируйтесь.',
+        'Bitte E-Mail und Passwort eingeben.':'Пожалуйста, введите эл. почту и пароль.',
+        'Bitte fülle alle Felder aus, um ein Konto zu erstellen.':'Пожалуйста, заполните все поля для создания аккаунта.',
+        'Passwort muss mindestens 6 Zeichen lang sein.':'Пароль должен быть не менее 6 символов.',
+        'Anmeldung läuft...':'Вход...',
+        'Registrierung wird erstellt...':'Создание аккаунта...',
+        'Registrierung erfolgreich. Bitte bestätige deine E-Mail-Adresse.':'Регистрация успешна. Пожалуйста подтвердите электронную почту.',
+        'Anmeldung fehlgeschlagen.':'Ошибка входа.',
+        'Sprache':'Язык',
+        'Passwort verbergen':'Скрыть пароль',
+        'Passwort anzeigen':'Показать пароль',
+        'Login | Security Operator':'Login | Security Operator'
+      },
+      fr: {
+        'Security Operator':'Security Operator',
+        'Bitte melde dich an, um zur Leitstelle zu gelangen.':'Veuillez vous connecter pour accéder au poste de commandement.',
+        'Vorname':'Prénom',
+        'Nachname':'Nom',
+        'E-Mail':'E-mail',
+        'Passwort':'Mot de passe',
+        'Anmelden':'Connexion',
+        'Registrieren':'S’inscrire',
+        'Noch kein Konto? Registrieren':'Pas encore de compte ? Inscrivez-vous',
+        'Schon ein Konto? Anmelden':'Déjà un compte ? Connectez-vous',
+        'Hinweis: Bitte melden Sie sich an oder registrieren Sie sich zuerst.':'Remarque : veuillez d’abord vous connecter ou vous inscrire.',
+        'Bitte E-Mail und Passwort eingeben.':'Veuillez saisir l’e-mail et le mot de passe.',
+        'Bitte fülle alle Felder aus, um ein Konto zu erstellen.':'Veuillez remplir tous les champs pour créer un compte.',
+        'Passwort muss mindestens 6 Zeichen lang sein.':'Le mot de passe doit contenir au moins 6 caractères.',
+        'Anmeldung läuft...':'Connexion en cours...',
+        'Registrierung wird erstellt...':'Création du compte...',
+        'Registrierung erfolgreich. Bitte bestätige deine E-Mail-Adresse.':'Inscription réussie. Veuillez confirmer votre e-mail.',
+        'Anmeldung fehlgeschlagen.':'Échec de la connexion.',
+        'Sprache':'Langue',
+        'Passwort verbergen':'Masquer le mot de passe',
+        'Passwort anzeigen':'Afficher le mot de passe',
+        'Login | Security Operator':'Login | Security Operator'
+      },
+      es: {
+        'Security Operator':'Security Operator',
+        'Bitte melde dich an, um zur Leitstelle zu gelangen.':'Por favor inicia sesión para acceder a la central.',
+        'Vorname':'Nombre',
+        'Nachname':'Apellido',
+        'E-Mail':'Correo electrónico',
+        'Passwort':'Contraseña',
+        'Anmelden':'Iniciar sesión',
+        'Registrieren':'Registrarse',
+        'Noch kein Konto? Registrieren':'¿No tienes cuenta? Regístrate',
+        'Schon ein Konto? Anmelden':'¿Ya tienes cuenta? Inicia sesión',
+        'Hinweis: Bitte melden Sie sich an oder registrieren Sie sich zuerst.':'Nota: por favor inicia sesión o regístrate primero.',
+        'Bitte E-Mail und Passwort eingeben.':'Por favor ingresa correo y contraseña.',
+        'Bitte fülle alle Felder aus, um ein Konto zu erstellen.':'Por favor completa todos los campos para crear una cuenta.',
+        'Passwort muss mindestens 6 Zeichen lang sein.':'La contraseña debe tener al menos 6 caracteres.',
+        'Anmeldung läuft...':'Iniciando sesión...',
+        'Registrierung wird erstellt...':'Creando registro...',
+        'Registrierung erfolgreich. Bitte bestätige deine E-Mail-Adresse.':'Registro exitoso. Confirma tu correo electrónico.',
+        'Anmeldung fehlgeschlagen.':'Inicio de sesión fallido.',
+        'Sprache':'Idioma',
+        'Passwort verbergen':'Ocultar contraseña',
+        'Passwort anzeigen':'Mostrar contraseña',
+        'Login | Security Operator':'Login | Security Operator'
+      }
+    };
+    function getLoginLangCode() {
+      const lang = localStorage.getItem('loginLanguage') || 'Deutsch';
+      return LOGIN_LCODES[lang] || 'de';
+    }
+    const LOGIN_REVERSE_TRANSLATIONS = Object.fromEntries(Object.entries(LOGIN_TRANSLATIONS).map(([lang, dict]) => [lang, Object.fromEntries(Object.entries(dict).map(([src, tgt]) => [tgt, src]))]));
+
+    function normalizeLoginString(value) {
+      let normalized = value;
+      Object.values(LOGIN_REVERSE_TRANSLATIONS).forEach(dict => {
+        if (dict[normalized]) normalized = dict[normalized];
+      });
+      return normalized;
+    }
+
+    function translateLoginString(value) {
+      const code = getLoginLangCode();
+      const translations = LOGIN_TRANSLATIONS[code] || {};
+      const normalized = normalizeLoginString(value);
+      return translations[normalized] || normalized;
+    }
+    function translateLoginPage() {
+      document.querySelectorAll('h1, p, label, button, .login-note, input').forEach(el => {
+        if (!el) return;
+        if (el.tagName === 'INPUT') {
+          const placeholder = el.getAttribute('placeholder');
+          if (placeholder) el.setAttribute('placeholder', translateLoginString(placeholder));
+        } else if (el.tagName === 'BUTTON' || el.tagName === 'P' || el.tagName === 'H1' || el.tagName === 'LABEL' || el.classList.contains('login-note')) {
+          el.textContent = translateLoginString(el.textContent.trim());
+        }
+      });
+      const title = document.querySelector('title');
+      if (title) title.textContent = translateLoginString(title.textContent);
+      const currentLang = localStorage.getItem('loginLanguage') || 'Deutsch';
+      const langSel = document.getElementById('login-language');
+      if (langSel) langSel.value = currentLang;
+    }
+    function setLoginLanguage(lang) {
+      if (!LOGIN_LANGUAGES.includes(lang)) return;
+      localStorage.setItem('loginLanguage', lang);
+      translateLoginPage();
+    }
+    function showMessage(message, isError = false) {
+      statusEl.textContent = translateLoginString(message);
+      statusEl.style.color = isError ? '#ef4444' : '#9aa0b0';
+    }
+
+    async function checkSession() {
+      const { data } = await supabaseClient.auth.getSession();
+      if (data?.session) {
+        window.location.href = 'index.html';
+      }
+    }
+
+    let registerMode = false;
+
+    function updateFormMode() {
+      const firstNameField = document.getElementById('firstNameField');
+      const lastNameField = document.getElementById('lastNameField');
+      const submitBtn = document.getElementById('submitBtn');
+      const modeToggleBtn = document.getElementById('modeToggleBtn');
+      const statusText = document.getElementById('statusMessage');
+      if (registerMode) {
+        firstNameField.classList.remove('hidden');
+        lastNameField.classList.remove('hidden');
+        submitBtn.textContent = 'Registrieren';
+        modeToggleBtn.textContent = 'Schon ein Konto? Anmelden';
+        statusText.textContent = 'Bitte fülle alle Felder aus, um ein Konto zu erstellen.';
+      } else {
+        firstNameField.classList.add('hidden');
+        lastNameField.classList.add('hidden');
+        submitBtn.textContent = 'Anmelden';
+        modeToggleBtn.textContent = 'Noch kein Konto? Registrieren';
+        statusText.textContent = 'Bitte melde dich mit E-Mail und Passwort an.';
+      }
+      translateLoginPage();
+    }
+
+    async function handleLogin(event) {
+      event.preventDefault();
+      if (registerMode) {
+        return handleRegister();
+      }
+      const email = emailEl.value.trim();
+      const password = passwordEl.value.trim();
+      if (!email || !password) {
+        showMessage('Bitte E-Mail und Passwort eingeben.', true);
+        return;
+      }
+      showMessage('Anmeldung läuft...', false);
+      const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+      if (error) {
+        showMessage(error.message || 'Anmeldung fehlgeschlagen.', true);
+        return;
+      }
+      if (data?.session) {
+        window.location.href = 'index.html';
+      } else {
+        showMessage('Angemeldet. Weiterleitung...', false);
+        window.location.href = 'index.html';
+      }
+    }
+
+    async function handleRegister() {
+      const firstName = firstNameEl.value.trim();
+      const lastName = lastNameEl.value.trim();
+      const email = emailEl.value.trim();
+      const password = passwordEl.value.trim();
+      if (!firstName || !lastName || !email || !password) {
+        showMessage('Bitte Vorname, Nachname, E-Mail und Passwort eingeben.', true);
+        return;
+      }
+      if (password.length < 6) {
+        showMessage('Passwort muss mindestens 6 Zeichen lang sein.', true);
+        return;
+      }
+      showMessage('Registrierung wird erstellt...', false);
+      const { data, error } = await supabaseClient.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            first_name: firstName,
+            last_name: lastName,
+            full_name: `${firstName} ${lastName}`
+          }
+        }
+      });
+      if (error) {
+        showMessage(error.message || 'Registrierung fehlgeschlagen.', true);
+        return;
+      }
+      if (data?.session) {
+        window.location.href = 'index.html';
+      } else {
+        showMessage('Registrierung erfolgreich. Bitte bestätige deine E-Mail-Adresse.', false);
+      }
+    }
+
+    function toggleRegisterMode() {
+      registerMode = !registerMode;
+      updateFormMode();
+    }
+
+    function eyeIcon() {
+      return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
+    }
+    function eyeOffIcon() {
+      return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94C16.11 19.35 14.14 20 12 20c-7 0-11-8-11-8 .92-1.68 2.16-3.2 3.64-4.45M6.1 6.1C7.89 4.65 9.86 4 12 4c7 0 11 8 11 8-.78 1.42-1.86 2.73-3.18 3.84"/><path d="M1 1l22 22"/></svg>';
+    }
+    const togglePasswordEl = document.getElementById('togglePassword');
+    togglePasswordEl.addEventListener('click', function() {
+      if (passwordEl.type === 'password') {
+        passwordEl.type = 'text';
+        this.innerHTML = eyeOffIcon();
+        this.setAttribute('aria-label', translateLoginString('Passwort verbergen'));
+      } else {
+        passwordEl.type = 'password';
+        this.innerHTML = eyeIcon();
+        this.setAttribute('aria-label', translateLoginString('Passwort anzeigen'));
+      }
+    });
+
+    updateFormMode();
+    translateLoginPage();
+    checkSession();
+    document.getElementById('loginForm').addEventListener('submit', handleLogin);
+    document.getElementById('modeToggleBtn').addEventListener('click', toggleRegisterMode);
+  </script>
+</body>
+</html>
