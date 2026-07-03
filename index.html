@@ -3641,6 +3641,148 @@ persist = async function() {
         }
     }, 200);
 })();
+  // =========================================================================
+// SUPABASE REALTIME-PROXY-MODUL (Einfach ganz unten anfügen)
+// =========================================================================
+
+// Bestehende Funktionen zur Sicherheit global überschreiben, falls sie aufgerufen werden
+hydrate = async function() { console.log("Abgefangen: Synchronisation läuft über Realtime-Proxy."); };
+persist = async function() { console.log("Abgefangen: Änderungen werden automatisch gestreamt."); };
+
+// Funktion, um Änderungen an Supabase zu senden
+async function syncToSupabase(category, currentArray) {
+    try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return;
+
+        // Wir nutzen eine einzige Zeile pro Benutzer in der Tabelle 'app_data'
+        // und aktualisieren gezielt nur die betroffene Kategorie (z.B. personal oder fahrzeuge)
+        const { error } = await supabaseClient
+            .from('app_data')
+            .upsert({ 
+                id: session.user.id, 
+                data: { ...D, [category]: currentArray }, // Das aktuelle D-Objekt mit der neuen Kategorie-Liste
+                updated_at: new Date().toISOString()
+            });
+
+        if (error) console.error(`Fehler beim Senden der Kategorie ${category}:`, error.message);
+    } catch (err) {
+        console.error("Sync-Fehler:", err);
+    }
+}
+
+// Erstellt einen "Spion" (Proxy) für Arrays wie D.personal oder D.fahrzeuge
+function createArrayProxy(category, targetArray) {
+    return new Proxy(targetArray, {
+        set(target, property, value, receiver) {
+            const result = Reflect.set(target, property, value, receiver);
+            
+            // Wenn sich die Länge ändert oder ein Element gesetzt wird, wurde das Array modifiziert
+            // (z.B. durch .push(), direkte Zuweisung oder Löschen)
+            if (property !== 'length') {
+                // Sende das aktualisierte Array verzögerungsfrei im Hintergrund an Supabase
+                syncToSupabase(category, target);
+            }
+            return result;
+        }
+    });
+}
+
+// Aktiviert die Überwachung für alle Kategorien in deinem D-Objekt
+function initializeDataWatchers() {
+    for (let key in D) {
+        if (Array.isArray(D[key])) {
+            D[key] = createArrayProxy(key, D[key]);
+        }
+    }
+    
+    // Überwachung auch auf das Haupt-Objekt D anwenden, falls Kategorien komplett ersetzt werden
+    D = new Proxy(D, {
+        set(target, property, value, receiver) {
+            if (Array.isArray(value)) {
+                value = createArrayProxy(property, value);
+            }
+            const result = Reflect.set(target, property, value, receiver);
+            if (Array.isArray(value)) {
+                syncToSupabase(property, value);
+            }
+            return result;
+        }
+    });
+}
+
+// AUTOMATISCHE REALTIME-SYNCHRONISATION (Hintergrund-Updates von anderen Nutzern)
+function setupRealtimeListener(userId) {
+    supabaseClient
+        .channel('schema-db-changes')
+        .on('postgres_changes', { 
+            event: 'UPDATE', 
+            schema: 'public', 
+            table: 'app_data',
+            filter: `id=eq.${userId}` 
+        }, (payload) => {
+            console.log('Hintergrund-Update von anderem Gerät/Nutzer empfangen!');
+            
+            if (payload.new && payload.new.data) {
+                const newData = payload.new.data;
+                
+                // Aktualisiere das lokale D-Objekt, ohne die Proxy-Spione zu zerstören
+                for (let key in newData) {
+                    if (D[key] && Array.isArray(D[key]) && Array.isArray(newData[key])) {
+                        // Leere das alte Array und fülle es neu, damit das UI es merkt
+                        D[key].length = 0; 
+                        D[key].push(...newData[key]);
+                    } else {
+                        D[key] = newData[key];
+                    }
+                }
+                
+                // UI deiner Webapp vollautomatisch im Hintergrund neu zeichnen
+                if (typeof renderAll === 'function') renderAll();
+                else if (typeof render === 'function') render();
+            }
+        })
+        .subscribe();
+}
+
+// Start-Infrastruktur: Wartet bis Supabase da ist, lädt Daten und startet die Live-Überwachung
+(function() {
+    const checkSupabase = setInterval(async () => {
+        if (typeof supabaseClient !== 'undefined') {
+            clearInterval(checkSupabase);
+            
+            try {
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                if (!session) return;
+
+                // 1. Erstmalig Daten aus Supabase laden
+                const { data } = await supabaseClient
+                    .from('app_data')
+                    .select('data')
+                    .eq('id', session.user.id)
+                    .single();
+
+                if (data && data.data) {
+                    D = data.data; // Bestehende Cloud-Daten einspielen
+                }
+
+                // 2. Proxies aktivieren (Ab jetzt wird jedes .push() etc. abgefangen!)
+                initializeDataWatchers();
+                
+                // 3. UI initial zeichnen
+                if (typeof renderAll === 'function') renderAll();
+                else if (typeof render === 'function') render();
+
+                // 4. Echtzeit-Kanal öffnen für Live-Updates von anderen parallel aktiven Nutzern
+                setupRealtimeListener(session.user.id);
+                
+                console.log("Supabase Realtime-Proxy erfolgreich gestartet. Vollautomatische Synchronisation aktiv.");
+            } catch (e) {
+                console.error("Fehler beim Starten des Realtime-Proxys:", e);
+            }
+        }
+    }, 200);
+})();
 </script>
 </body>
 </html>
