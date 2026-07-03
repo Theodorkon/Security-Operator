@@ -3540,6 +3540,107 @@ renderAll();
 translatePage();
 updateClock();
 setInterval(updateClock,1000);
+  // =========================================================================
+// SUPABASE DIREKT-ÜBERSCHREIB-MODUL (Einfach ganz unten einfügen)
+// =========================================================================
+
+// Hier definieren wir die Lade-Funktion (hydrate) komplett neu.
+// Sie überschreibt automatisch deine alte, lokale hydrate-Funktion.
+hydrate = async function() {
+    console.log("Supabase: Starte Laden der Daten...");
+    try {
+        // Prüfen, ob der Nutzer eingeloggt ist
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) {
+            console.warn("Supabase: Kein aktiver Nutzer eingeloggt.");
+            return;
+        }
+
+        const user = session.user;
+
+        // Lädt die gesamten Daten aus der Tabelle 'app_data' für diesen Nutzer
+        const { data, error } = await supabaseClient
+            .from('app_data')
+            .select('data')
+            .eq('id', user.id)
+            .single();
+
+        if (error && error.code !== 'PGRST116') { // PGRST116 = Noch keine Daten vorhanden
+            console.error("Supabase-Ladefehler:", error.message);
+            return;
+        }
+
+        if (data && data.data) {
+            // Überschreibt dein globales Daten-Objekt D mit den Cloud-Daten
+            D = data.data;
+            console.log("Supabase: Daten erfolgreich aus der Cloud geladen!");
+        } else {
+            console.log("Supabase: Keine Cloud-Daten gefunden. Verwende leere Standardwerte.");
+        }
+        
+        // Versucht deine Benutzeroberfläche neu zu zeichnen, falls die Funktion existiert
+        if (typeof renderAll === 'function') {
+            renderAll(); 
+        } else if (typeof render === 'function') {
+            render();
+        }
+        
+    } catch (err) {
+        console.error("Kritischer Fehler bei Supabase-hydrate:", err);
+    }
+};
+
+// Hier definieren wir die Speicher-Funktion (persist) komplett neu.
+// Sie überschreibt automatisch deine alte, lokale persist-Funktion.
+persist = async function() {
+    console.log("Supabase: Starte Speichern der Daten...");
+    try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) {
+            console.warn("Supabase: Speichern abgebrochen, da kein Nutzer eingeloggt ist.");
+            return;
+        }
+
+        const user = session.user;
+
+        // Speichert das gesamte D-Objekt (inkl. Personal, Fahrzeuge, etc.) als JSON ab
+        const { error } = await supabaseClient
+            .from('app_data')
+            .upsert({ 
+                id: user.id, 
+                data: D,
+                updated_at: new Date().toISOString()
+            });
+
+        if (error) {
+            console.error("Supabase-Speicherfehler:", error.message);
+        } else {
+            console.log("Supabase: Daten erfolgreich in der Cloud gesichert!");
+        }
+    } catch (err) {
+        console.error("Kritischer Fehler bei Supabase-persist:", err);
+    }
+};
+
+// AUTOMATISCHER HINTERGRUND-TRIGGER
+// Wartet kurz, bis die Seite und der Supabase-Client geladen sind,
+// und stößt dann die neue hydrate-Funktion an.
+(function() {
+    const checkSupabase = setInterval(() => {
+        if (typeof supabaseClient !== 'undefined') {
+            clearInterval(checkSupabase);
+            
+            // Initialer Aufruf zum Laden der Daten aus der Cloud beim Seitenstart
+            hydrate();
+
+            // Hintergrund-Aktualisierung: Alle 30 Sekunden werden die Daten 
+            // im Hintergrund neu geladen, ohne dass der Nutzer es merkt.
+            setInterval(() => {
+                hydrate();
+            }, 30000); // 30000 Millisekunden = 30 Sekunden
+        }
+    }, 200);
+})();
 </script>
 </body>
 </html>
