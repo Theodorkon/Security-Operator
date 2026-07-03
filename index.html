@@ -3903,7 +3903,92 @@ const D = {
 
 // Falls am Ende der Datei die Funktionen exportiert werden, lass das so stehen:
 // export { D, supabase };
-  
+  <!-- Automatisches Mobile & Tablet Responsive-Skript -->
+<script>
+  (function() {
+    // 1. Viewport-Meta-Tag für mobiles Skalieren dynamisch hinzufügen
+    if (!document.querySelector('meta[name="viewport"]')) {
+      const meta = document.createElement('meta');
+      meta.name = 'viewport';
+      meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+      document.head.appendChild(meta);
+    }
+
+    // 2. CSS-Regeln für Handys und Tablets injizieren
+    const style = document.createElement('style');
+    style.textContent = `
+      /* --- OPTIMIERUNG FÜR TABLETS (Quer- & Hochformat) --- */
+      @media (max-width: 1024px) {
+        body {
+          padding: 15px !important;
+          font-size: 16px !important;
+        }
+        /* Tabellen scrollbar machen, damit sie nicht das Layout sprengen */
+        table, .table-container {
+          display: block !important;
+          width: 100% !important;
+          overflow-x: auto !important;
+          -webkit-overflow-scrolling: touch;
+        }
+        /* Eingabefelder vergrößern für leichtere Bedienung per Touch */
+        input, select, textarea, button {
+          min-height: 44px !important;
+          font-size: 16px !important; /* Verhindert Auto-Zoom bei iOS */
+        }
+      }
+
+      /* --- OPTIMIERUNG FÜR HANDYS --- */
+      @media (max-width: 768px) {
+        body {
+          padding: 10px !important;
+        }
+        /* Formulare einspaltig brechen */
+        form, .form-row, .grid-container {
+          display: flex !important;
+          flex-direction: column !important;
+          width: 100% !important;
+          gap: 10px !important;
+        }
+        .form-group, .grid-item, input, select, button {
+          width: 100% !important;
+          box-sizing: border-box !important;
+        }
+        /* Login-Boxen zentrieren und auf volle Breite bringen */
+        .login-card, .login-container {
+          width: 90% !important;
+          max-width: 400px !important;
+          margin: 40px auto !important;
+          padding: 20px !important;
+        }
+        /* Navigationen/Header mobil untereinander stapeln */
+        header, nav, .navbar {
+          flex-direction: column !important;
+          text-align: center !important;
+          gap: 10px !important;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+
+    // 3. Optionale JavaScript-Erkennung (fügt Klassen an das <body> Tag an)
+    document.addEventListener("DOMContentLoaded", function() {
+      const updateDeviceClass = () => {
+        const width = window.innerWidth;
+        document.body.classList.remove('device-mobile', 'device-tablet', 'device-desktop');
+        
+        if (width <= 768) {
+          document.body.classList.add('device-mobile');
+        } else if (width <= 1024) {
+          document.body.classList.add('device-tablet');
+        } else {
+          document.body.classList.add('device-desktop');
+        }
+      };
+      
+      window.addEventListener('resize', updateDeviceClass);
+      updateDeviceClass();
+    });
+  })();
 </script>
 </body>
 </html>
