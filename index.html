@@ -3784,5 +3784,87 @@ function setupRealtimeListener(userId) {
     }, 200);
 })();
 </script>
+<script>
+// Kann einfach am Ende der Datei vor </body> angefügt werden
+(async function handleInPageLogin() {
+  // Warte, bis das DOM geladen ist
+  if (document.readyState === 'loading') {
+    await new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve));
+  }
+
+  const appContainer = document.querySelector('.app');
+  if (!appContainer) return;
+
+  // Initial ausblenden, solange geprüft wird
+  appContainer.style.display = 'none';
+
+  // Session von Supabase abfragen
+  const { data } = await supabaseClient.auth.getSession();
+
+  if (data?.session) {
+    // Nutzer ist eingeloggt -> Zeige die Index-Anwendung
+    appContainer.style.display = '';
+    document.documentElement.style.visibility = 'visible';
+  } else {
+    // Nutzer ist NICHT eingeloggt -> Erstelle das Login-Formular dynamisch
+    const loginOverlay = document.createElement('div');
+    loginOverlay.id = 'dynamic-login-overlay';
+    loginOverlay.style = `
+      position: fixed; inset: 0; background: #13151a; z-index: 99999;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Inter', sans-serif; color: #e8eaf0; padding: 20px;
+    `;
+
+    loginOverlay.innerHTML = `
+      <div style="background: #1a1d24; border: 1px solid #2e3340; padding: 30px; border-radius: 10px; width: 100%; max-width: 400px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+        <h2 style="margin-bottom: 20px; text-align: center; font-size: 20px;"><span style="font-weight: 800; background: linear-gradient(90deg, #4a9eff, #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Security Operator</span> Login</h2>
+        <div id="login-error" style="color: #ef4444; font-size: 12px; margin-bottom: 10px; display: none; text-align: center;"></div>
+        <form id="dynamic-login-form" style="display: flex; flex-direction: column; gap: 15px;">
+          <div style="display: flex; flex-direction: column; gap: 5px;">
+            <label style="font-size: 11px; color: #9aa0b0; text-transform: uppercase;">E-Mail</label>
+            <input type="email" id="login-email" required style="background: #22262f; border: 1px solid #2e3340; border-radius: 5px; color: #e8eaf0; padding: 10px; outline: none;">
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 5px;">
+            <label style="font-size: 11px; color: #9aa0b0; text-transform: uppercase;">Passwort</label>
+            <input type="password" id="login-password" required style="background: #22262f; border: 1px solid #2e3340; border-radius: 5px; color: #e8eaf0; padding: 10px; outline: none;">
+          </div>
+          <button type="submit" style="background: #4a9eff; color: #fff; border: none; border-radius: 5px; padding: 12px; font-weight: 600; cursor: pointer; margin-top: 10px; transition: opacity 0.15s;">Anmelden</button>
+        </form>
+      </div>
+    `;
+
+    document.body.appendChild(loginOverlay);
+    document.documentElement.style.visibility = 'visible';
+
+    // Formular-Submit Event Handler
+    document.getElementById('dynamic-login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('login-email').value;
+      const password = document.getElementById('login-password').value;
+      const errorDiv = document.getElementById('login-error');
+      const submitBtn = e.target.querySelector('button');
+
+      submitBtn.disabled = true;
+      submitBtn.innerText = 'Prüfe...';
+      errorDiv.style.display = 'none';
+
+      const { data: signInData, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+
+      if (error) {
+        errorDiv.innerText = 'Anmeldung fehlgeschlagen: ' + error.message;
+        errorDiv.style.display = 'block';
+        submitBtn.disabled = false;
+        submitBtn.innerText = 'Anmelden';
+      } else {
+        // Login erfolgreich! Overlay entfernen und App anzeigen
+        loginOverlay.remove();
+        appContainer.style.display = '';
+        // Falls ensureAuth() im alten Code existiert, triggern wir es hier zur Namensauflösung nach
+        if (typeof ensureAuth === 'function') ensureAuth();
+      }
+    });
+  }
+})();
+</script>
 </body>
 </html>
